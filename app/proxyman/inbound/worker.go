@@ -62,6 +62,7 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 	if w.recvOrigDest {
 		var dest net.Destination
 		switch getTProxyType(w.stream) {
+		// 对应nat redirect地址处理
 		case internet.SocketConfig_Redirect:
 			d, err := tcp.GetOriginalDestination(conn)
 			if err != nil {
@@ -69,6 +70,7 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 			} else {
 				dest = d
 			}
+		// 对应mangle tproxy地址处理
 		case internet.SocketConfig_TProxy:
 			dest = net.DestinationFromAddr(conn.LocalAddr())
 		}
@@ -84,6 +86,7 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 		Tag:     w.tag,
 	})
 	content := new(session.Content)
+	// 开启了sniffing
 	if w.sniffingConfig != nil {
 		content.SniffingRequest.Enabled = w.sniffingConfig.Enabled
 		content.SniffingRequest.OverrideDestinationForProtocol = w.sniffingConfig.DestinationOverride
@@ -97,6 +100,7 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 			WriteCounter: w.downlinkCounter,
 		}
 	}
+	// 调用对应入站协议的Process函数，例如proxy.http.Process
 	if err := w.proxy.Process(ctx, net.Network_TCP, conn, w.dispatcher); err != nil {
 		newError("connection ends").Base(err).WriteToLog(session.ExportIDToError(ctx))
 	}
@@ -110,9 +114,12 @@ func (w *tcpWorker) Proxy() proxy.Inbound {
 	return w.proxy
 }
 
+// inbound worker start
 func (w *tcpWorker) Start() error {
 	ctx := context.Background()
+	// 启动tcp监听
 	hub, err := internet.ListenTCP(ctx, w.address, w.port, w.stream, func(conn internet.Connection) {
+		// 新连接协程处理
 		go w.callback(conn)
 	})
 	if err != nil {
@@ -122,6 +129,7 @@ func (w *tcpWorker) Start() error {
 	return nil
 }
 
+// inbound worker close
 func (w *tcpWorker) Close() error {
 	var errors []interface{}
 	if w.hub != nil {

@@ -2,6 +2,7 @@ package udp
 
 import (
 	"context"
+	"encoding/hex"
 	"io"
 	"sync"
 	"time"
@@ -69,6 +70,7 @@ func (v *Dispatcher) getInboundRay(ctx context.Context, dest net.Destination) *c
 		cancel()
 		v.RemoveRay(dest)
 	}
+	// 300秒后关闭
 	timer := signal.CancelAfterInactivity(ctx, removeRay, time.Second*300)
 	link, _ := v.dispatcher.Dispatch(ctx, dest)
 	entry := &connEntry{
@@ -77,11 +79,14 @@ func (v *Dispatcher) getInboundRay(ctx context.Context, dest net.Destination) *c
 		cancel: removeRay,
 	}
 	v.conns[dest] = entry
+	// 启动协程，等待数据来了调用callback
 	go handleInput(ctx, entry, dest, v.callback)
 	return entry
 }
 
 func (v *Dispatcher) Dispatch(ctx context.Context, destination net.Destination, payload *buf.Buffer) {
+	newError("Dispatch... ", hex.EncodeToString(payload.Bytes())).AtDebug().WriteToLog()
+
 	// TODO: Add user to destString
 	newError("dispatch request to: ", destination).AtDebug().WriteToLog(session.ExportIDToError(ctx))
 
@@ -104,12 +109,19 @@ func handleInput(ctx context.Context, conn *connEntry, dest net.Destination, cal
 
 	for {
 		select {
+		// 处理context超时
 		case <-ctx.Done():
 			return
 		default:
 		}
 
+		newError("handleInput...").AtDebug().WriteToLog()
+
+		// 读取buffer
+		newError("ReadMultiBuffer begin").AtDebug().WriteToLog()
 		mb, err := input.ReadMultiBuffer()
+		newError("ReadMultiBuffer end").AtDebug().WriteToLog()
+
 		if err != nil {
 			newError("failed to handle UDP input").Base(err).WriteToLog(session.ExportIDToError(ctx))
 			return

@@ -192,10 +192,12 @@ func (c *Client) QueryIP(ctx context.Context, domain string, option dns.IPOption
 	disableCache := c.cacheStrategy == CacheStrategy_CacheDisabled
 
 	ctx = session.ContextWithInbound(ctx, &session.Inbound{Tag: c.tag})
+	// dns超时时间, 超时cancel调用后会设置err为context exceeded
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	ips, err := server.QueryIP(ctx, domain, c.clientIP, queryOption, disableCache)
 	cancel()
 
+	// 有错误发生
 	if err != nil || queryOption.FakeEnable {
 		return ips, err
 	}

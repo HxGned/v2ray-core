@@ -48,6 +48,7 @@ type AlwaysOnInboundHandler struct {
 	tag     string
 }
 
+// 添加Inbound的Handler（stream worker）
 func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *proxyman.ReceiverConfig, proxyConfig interface{}) (*AlwaysOnInboundHandler, error) {
 	rawProxy, err := common.CreateObject(ctx, proxyConfig)
 	if err != nil {
@@ -88,6 +89,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 		mss.SocketSettings.ReceiveOriginalDestAddress = true
 	}
 	if pr == nil {
+		// UNIX-DOMAIN
 		if net.HasNetwork(nl, net.Network_UNIX) {
 			newError("creating unix domain socket worker on ", address).AtDebug().WriteToLog()
 
@@ -107,6 +109,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 	}
 	if pr != nil {
 		for port := pr.From; port <= pr.To; port++ {
+			// TCP
 			if net.HasNetwork(nl, net.Network_TCP) {
 				newError("creating stream worker on ", address, ":", port).AtDebug().WriteToLog()
 
@@ -126,6 +129,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 				h.workers = append(h.workers, worker)
 			}
 
+			// UDP
 			if net.HasNetwork(nl, net.Network_UDP) {
 				worker := &udpWorker{
 					ctx:             ctx,
@@ -150,7 +154,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 // Start implements common.Runnable.
 func (h *AlwaysOnInboundHandler) Start() error {
 	for _, worker := range h.workers {
-		if err := worker.Start(); err != nil {
+		if err := worker.Start(); err != nil { // 调用Worker的start方法
 			return err
 		}
 	}

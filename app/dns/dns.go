@@ -270,6 +270,8 @@ func (s *DNS) LookupIPv6(domain string) ([]net.IP, error) {
 }
 
 func (s *DNS) lookupIPInternal(domain string, option dns.IPOption) ([]net.IP, error) {
+	newError("lookupIPInternal begin! ", "v4: ", option.IPv4Enable, " v6: ", option.IPv6Enable, " fakeDNS: ", option.FakeEnable).WriteToLog()
+
 	if domain == "" {
 		return nil, newError("empty domain name")
 	}
@@ -294,7 +296,9 @@ func (s *DNS) lookupIPInternal(domain string, option dns.IPOption) ([]net.IP, er
 	// Name servers lookup
 	errs := []error{}
 	for _, client := range s.sortClients(domain, option) {
+		newError("client.QueryIP begin").AtDebug().WriteToLog()
 		ips, err := client.QueryIP(s.ctx, domain, option)
+		newError("client.QueryIP end").AtDebug().WriteToLog()
 		if len(ips) > 0 {
 			return ips, nil
 		}
@@ -308,6 +312,8 @@ func (s *DNS) lookupIPInternal(domain string, option dns.IPOption) ([]net.IP, er
 			return nil, err // Only continue lookup for certain errors
 		}
 	}
+
+	newError("lookupIPInternal end! ", " v4: ", option.IPv4Enable, " v6: ", option.IPv6Enable, " fakeDNS: ", option.FakeEnable).WriteToLog()
 
 	if len(errs) == 0 {
 		return nil, dns.ErrEmptyResponse

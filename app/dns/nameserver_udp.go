@@ -139,9 +139,11 @@ func (s *ClassicNameServer) HandleResponse(ctx context.Context, packet *udp_prot
 
 	elapsed := time.Since(req.start)
 	newError(s.name, " got answer: ", req.domain, " ", req.reqType, " -> ", ipRec.IP, " ", elapsed).AtInfo().WriteToLog()
+	newError("A").AtDebug().WriteToLog()
 	if len(req.domain) > 0 && (rec.A != nil || rec.AAAA != nil) {
 		s.updateIP(req.domain, rec)
 	}
+	newError("B").AtDebug().WriteToLog()
 }
 
 func (s *ClassicNameServer) updateIP(domain string, newRec record) {
@@ -189,6 +191,7 @@ func (s *ClassicNameServer) addPendingRequest(req *dnsRequest) {
 func (s *ClassicNameServer) sendQuery(ctx context.Context, domain string, clientIP net.IP, option dns_feature.IPOption) {
 	newError(s.name, " querying DNS for: ", domain).AtDebug().WriteToLog(session.ExportIDToError(ctx))
 
+	// 构建dns请求
 	reqs := buildReqMsgs(domain, option, s.newReqID, genEDNS0Options(clientIP))
 
 	for _, req := range reqs {
@@ -201,7 +204,9 @@ func (s *ClassicNameServer) sendQuery(ctx context.Context, domain string, client
 		udpCtx = session.ContextWithContent(udpCtx, &session.Content{
 			Protocol: "dns",
 		})
+		newError("call Dispatch begin").AtDebug().WriteToLog(session.ExportIDToError(ctx))
 		s.udpServer.Dispatch(udpCtx, s.address, b)
+		newError("call Dispatch end").AtDebug().WriteToLog(session.ExportIDToError(ctx))
 	}
 }
 
@@ -245,6 +250,8 @@ func (s *ClassicNameServer) findIPsForDomain(domain string, option dns_feature.I
 
 // QueryIP implements Server.
 func (s *ClassicNameServer) QueryIP(ctx context.Context, domain string, clientIP net.IP, option dns_feature.IPOption, disableCache bool) ([]net.IP, error) {
+	newError("udp QueryIP begin").AtDebug().WriteToLog()
+
 	fqdn := Fqdn(domain)
 
 	if disableCache {
@@ -272,18 +279,24 @@ func (s *ClassicNameServer) QueryIP(ctx context.Context, domain string, clientIP
 		if sub4 != nil {
 			select {
 			case <-sub4.Wait():
+				println("sub4 case <-sub4.Wait():")
 			case <-ctx.Done():
+				println("sub4 case <-ctx.Done():")
 			}
 		}
 		if sub6 != nil {
 			select {
 			case <-sub6.Wait():
+				println("sub6 case <-sub6.Wait():")
 			case <-ctx.Done():
+				println("sub6 case <-ctx.Done():")
 			}
 		}
 		close(done)
 	}()
+	newError("sendQuery begin: ", fqdn).AtDebug().WriteToLog()
 	s.sendQuery(ctx, fqdn, clientIP, option)
+	newError("sendQuery end: ", fqdn).AtDebug().WriteToLog()
 
 	for {
 		ips, err := s.findIPsForDomain(fqdn, option)
@@ -291,10 +304,14 @@ func (s *ClassicNameServer) QueryIP(ctx context.Context, domain string, clientIP
 			return ips, err
 		}
 
+		newError("QueryIP select begin").AtDebug().WriteToLog()
 		select {
 		case <-ctx.Done():
+			newError("QueryIP select end with error:", ctx.Err()).AtDebug().WriteToLog()
 			return nil, ctx.Err()
 		case <-done:
+			newError("QueryIP select end <-done", ctx.Err()).AtDebug().WriteToLog()
 		}
+		newError("QueryIP select end").AtDebug().WriteToLog()
 	}
 }

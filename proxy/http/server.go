@@ -140,6 +140,7 @@ Start:
 		Reason: "",
 	})
 
+	// 处理HTTP代理
 	if strings.EqualFold(request.Method, "CONNECT") {
 		return s.handleConnect(ctx, request, reader, conn, dest, dispatcher)
 	}
@@ -165,6 +166,7 @@ func (s *Server) handleConnect(ctx context.Context, _ *http.Request, reader *buf
 
 	plcy := s.policy()
 	ctx, cancel := context.WithCancel(ctx)
+	// 超时定时器
 	timer := signal.CancelAfterInactivity(ctx, cancel, plcy.Timeouts.ConnectionIdle)
 
 	ctx = policy.ContextWithBufferPolicy(ctx, plcy.Buffer)
